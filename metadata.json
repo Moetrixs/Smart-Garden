@@ -1,0 +1,6 @@
+{
+  "name": "ESP32 IoT Dual-Node Telemetry Hub",
+  "description": "Dashboard monitoring real-time untuk ESP32 Gateway via WiFi dan ESP32 Sensor Tanah via ESP-NOW",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
