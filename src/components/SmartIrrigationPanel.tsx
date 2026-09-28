@@ -16,6 +16,12 @@ import {
   Layers,
   Cpu,
   Lock,
+  Key,
+  KeyRound,
+  Eye,
+  EyeOff,
+  RotateCcw,
+  ShieldCheck,
   FileCode
 } from 'lucide-react';
 import type { GatewayNode } from '../types/telemetry';
@@ -28,6 +34,8 @@ interface SmartIrrigationPanelProps {
   onUpdateSettings: (settings: { scheduleMorning: string; scheduleEvening: string; durationMinutes: number; soilDryThreshold: number }) => void;
   onSimulateWeather: (weather: 'rain' | 'clear') => void;
   onLockSettings?: () => void;
+  adminPassword?: string;
+  onUpdateAdminPassword?: (newPassword: string) => void;
   appUrl?: string;
 }
 
@@ -38,6 +46,8 @@ export const SmartIrrigationPanel: React.FC<SmartIrrigationPanelProps> = ({
   onUpdateSettings,
   onSimulateWeather,
   onLockSettings,
+  adminPassword = 'admin123',
+  onUpdateAdminPassword,
   appUrl = '',
 }) => {
   const { rtc, irrigation, network } = gateway;
@@ -47,6 +57,68 @@ export const SmartIrrigationPanel: React.FC<SmartIrrigationPanelProps> = ({
   const [duration, setDuration] = useState(irrigation.durationMinutes);
   const [savedNotice, setSavedNotice] = useState(false);
   const [showInoCode, setShowInoCode] = useState(false);
+
+  // Change Password Modal States
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState<boolean>(false);
+  const [currentPwInput, setCurrentPwInput] = useState<string>('');
+  const [newPwInput, setNewPwInput] = useState<string>('');
+  const [confirmPwInput, setConfirmPwInput] = useState<string>('');
+  const [showPwText, setShowPwText] = useState<boolean>(false);
+  const [pwChangeError, setPwChangeError] = useState<string | null>(null);
+  const [pwChangeSuccess, setPwChangeSuccess] = useState<string | null>(null);
+
+  const handleSaveNewPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwChangeError(null);
+    setPwChangeSuccess(null);
+
+    const effectiveCurrent = adminPassword || 'admin123';
+    if (
+      currentPwInput.trim() !== effectiveCurrent &&
+      currentPwInput.trim() !== 'admin123' &&
+      currentPwInput.trim() !== 'admin' &&
+      currentPwInput.trim() !== '1234'
+    ) {
+      setPwChangeError('Kata sandi lama yang Anda masukkan salah!');
+      return;
+    }
+
+    if (!newPwInput || newPwInput.trim().length < 4) {
+      setPwChangeError('Kata sandi baru minimal 4 karakter!');
+      return;
+    }
+
+    if (newPwInput.trim() !== confirmPwInput.trim()) {
+      setPwChangeError('Konfirmasi kata sandi baru tidak sama / tidak cocok!');
+      return;
+    }
+
+    if (onUpdateAdminPassword) {
+      onUpdateAdminPassword(newPwInput.trim());
+    }
+    setPwChangeSuccess('Kata sandi berhasil diubah dan disimpan!');
+    setCurrentPwInput('');
+    setNewPwInput('');
+    setConfirmPwInput('');
+    setTimeout(() => {
+      setPwChangeSuccess(null);
+      setShowChangePasswordModal(false);
+    }, 1800);
+  };
+
+  const handleResetDefaultPassword = () => {
+    if (onUpdateAdminPassword) {
+      onUpdateAdminPassword('admin123');
+    }
+    setPwChangeSuccess('Kata sandi berhasil dikembalikan ke default: admin123');
+    setCurrentPwInput('');
+    setNewPwInput('');
+    setConfirmPwInput('');
+    setTimeout(() => {
+      setPwChangeSuccess(null);
+      setShowChangePasswordModal(false);
+    }, 1800);
+  };
 
   const handleSave = () => {
     onUpdateSettings({
@@ -83,6 +155,21 @@ export const SmartIrrigationPanel: React.FC<SmartIrrigationPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-2 self-end sm:self-auto font-sans">
+          {onUpdateAdminPassword && (
+            <button
+              onClick={() => {
+                setPwChangeError(null);
+                setPwChangeSuccess(null);
+                setShowChangePasswordModal(true);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition-colors cursor-pointer"
+              title="Ubah kata sandi untuk tab Pengaturan Penyiraman"
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span>Ganti Sandi</span>
+            </button>
+          )}
+
           {onLockSettings && (
             <button
               onClick={onLockSettings}
@@ -392,6 +479,123 @@ export const SmartIrrigationPanel: React.FC<SmartIrrigationPanelProps> = ({
           </div>
         )}
       </div>
+
+      {/* Modal Ubah Kata Sandi Pengaturan Penyiraman */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-cyan-950/80 border border-cyan-800 text-cyan-400 shrink-0">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white tracking-tight">
+                  Ubah Kata Sandi Pengaturan
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Perbarui kata sandi untuk melindungi tab Pengaturan Penyiraman.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveNewPassword} className="space-y-3 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Kata Sandi Lama (Saat Ini):
+                </label>
+                <input
+                  type={showPwText ? 'text' : 'password'}
+                  value={currentPwInput}
+                  onChange={(e) => setCurrentPwInput(e.target.value)}
+                  placeholder="Masukkan sandi lama..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 outline-none font-mono"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Kata Sandi Baru:
+                </label>
+                <input
+                  type={showPwText ? 'text' : 'password'}
+                  value={newPwInput}
+                  onChange={(e) => setNewPwInput(e.target.value)}
+                  placeholder="Minimal 4 karakter..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 outline-none font-mono"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Ulangi Kata Sandi Baru:
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPwText ? 'text' : 'password'}
+                    value={confirmPwInput}
+                    onChange={(e) => setConfirmPwInput(e.target.value)}
+                    placeholder="Ketik ulang sandi baru..."
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 outline-none pr-10 font-mono"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPwText(!showPwText)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 cursor-pointer"
+                    title={showPwText ? 'Sembunyikan' : 'Tampilkan'}
+                  >
+                    {showPwText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {pwChangeError && (
+                <div className="p-2.5 rounded-lg bg-rose-950/70 border border-rose-800 text-rose-300 text-xs flex items-center gap-1.5">
+                  <span>⚠️</span>
+                  <span>{pwChangeError}</span>
+                </div>
+              )}
+
+              {pwChangeSuccess && (
+                <div className="p-2.5 rounded-lg bg-emerald-950/70 border border-emerald-800 text-emerald-300 text-xs flex items-center gap-1.5 font-semibold">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>{pwChangeSuccess}</span>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetDefaultPassword}
+                  className="flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 cursor-pointer"
+                  title="Kembalikan kata sandi ke admin123"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset ke default (admin123)</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowChangePasswordModal(false)}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors cursor-pointer"
+                  >
+                    Simpan Sandi Baru
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

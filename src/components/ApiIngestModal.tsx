@@ -18,6 +18,7 @@ export const ApiIngestModal: React.FC<ApiIngestModalProps> = ({ isOpen, onClose,
 
   const sampleJson = {
     gatewayId: "ESP32-GW-ALPHA",
+    gatewayMac: "24:0a:c4:15:40:25",
     wifiSsid: "IoT-Lab-WiFi",
     wifiRssi: -58,
     sensors: {

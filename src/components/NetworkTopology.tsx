@@ -146,6 +146,10 @@ export const NetworkTopology: React.FC<NetworkTopologyProps> = ({
 
             <div className="mt-3.5 pt-3 border-t border-slate-800/80 space-y-2 text-xs">
               <div className="flex justify-between items-center text-slate-400">
+                <span>MAC Address Gateway:</span>
+                <span className="text-amber-300 font-mono font-semibold">24:0a:c4:15:40:25</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-400">
                 <span>Akses HP (Tanpa Internet):</span>
                 <span className="text-emerald-300 font-bold font-mono">http://192.168.4.1</span>
               </div>
@@ -159,7 +163,7 @@ export const NetworkTopology: React.FC<NetworkTopologyProps> = ({
               </div>
               <div className="flex justify-between items-center text-slate-400">
                 <span>Relay Aktuator:</span>
-                <span className="font-mono text-cyan-300">GPIO 2 (Kontrol Pompa dari HP)</span>
+                <span className="font-mono text-cyan-300">Pompa: GPIO 13 · Valve: GPIO 12</span>
               </div>
             </div>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check, Download, FileCode, Cpu, Radio, BookOpen, Smartphone, Moon, Wifi } from 'lucide-react';
+import { Copy, Check, Download, FileCode, Cpu, BookOpen, Smartphone, Moon, Wifi, Key, RotateCcw, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
 interface FirmwareCodeViewerProps {
   appUrl: string;
@@ -8,6 +8,13 @@ interface FirmwareCodeViewerProps {
 export const FirmwareCodeViewer: React.FC<FirmwareCodeViewerProps> = ({ appUrl }) => {
   const [activeCodeTab, setActiveCodeTab] = useState<'standalone_ap' | 'soil_c3' | 'gateway_cloud' | 'mac' | 'wiring'>('standalone_ap');
   const [copied, setCopied] = useState<boolean>(false);
+
+  // WiFi Hotspot AP & Client Credentials (Editable by user)
+  const [apSsid, setApSsid] = useState<string>('ESP32-Smart-Garden');
+  const [apPassword, setApPassword] = useState<string>('password123');
+  const [wifiSsid, setWifiSsid] = useState<string>('NAMA_WIFI_INTERNET_ANDA');
+  const [wifiPassword, setWifiPassword] = useState<string>('PASSWORD_WIFI_ANDA');
+  const [showWifiPassword, setShowWifiPassword] = useState<boolean>(false);
 
   const endpointUrl = `${appUrl}/api/telemetry`;
 
@@ -65,8 +72,8 @@ const int WaterValue = 1400;  // ADC saat basah
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature soilTempSensor(&oneWire);
 
-// --- MASUKKAN MAC ADDRESS DARI ESP-WROOM-32D GATEWAY ANDA ---
-uint8_t gatewayMacAddress[] = { 0x24, 0x6F, 0x28, 0xB1, 0xC0, 0x8A };
+// --- MAC ADDRESS ESP-WROOM-32D GATEWAY (24:0a:c4:15:40:25) ---
+uint8_t gatewayMacAddress[] = { 0x24, 0x0A, 0xC4, 0x15, 0x40, 0x25 };
 
 typedef struct struct_soil_packet {
   char nodeId[16];
@@ -207,8 +214,8 @@ void loop() {
  * ==============================================================================
  * FITUR UTAMA:
  * 1. Menjalankan HOTSPOT WIFI MANDIRI (Access Point):
- *    - Nama WiFi (SSID): "ESP32-Smart-Garden"
- *    - Password: "password123" (atau kosongi untuk open WiFi)
+ *    - Nama WiFi (SSID): "${apSsid}"
+ *    - Password: "${apPassword}" (atau kosongi untuk open WiFi)
  *    - IP Address Dashboard: 192.168.4.1
  * 2. Menyimpan & Menjalankan DASHBOARD WEB LENGKAP langsung dari Flash ESP32!
  *    - Pengguna langsung membuka browser di HP (Chrome, Safari, Firefox),
@@ -228,20 +235,22 @@ void loop() {
 #include <LiquidCrystal_I2C.h>
 
 // --- KONFIGURASI ACCESS POINT (HOTSPOT HP) ---
-const char* AP_SSID     = "ESP32-Smart-Garden";
-const char* AP_PASSWORD = "password123"; // Minimal 8 karakter
+// Ganti nama SSID dan Password sesuai keinginan Anda di bawah ini:
+const char* AP_SSID     = "${apSsid}";
+const char* AP_PASSWORD = "${apPassword}"; // Minimal 8 karakter
 
 // Web Server di Port 80
 WebServer server(80);
 
 // --- PIN DEFINITIONS (ESP-WROOM-32D) ---
-#define I2C_SDA       21     // LCD 16x2 SDA
-#define I2C_SCL       22     // LCD 16x2 SCL
-#define DHTPIN        4      // DHT22
-#define DHTTYPE       DHT22  
-#define LDR_PIN       34     // Sensor Cahaya LDR
-#define BUTTON_PIN    15     // Push Button (Active LOW)
-#define RELAY_PIN     2      // Relay Pompa Air
+#define I2C_SDA          21     // LCD 16x2 / RTC DS3231 SDA
+#define I2C_SCL          22     // LCD 16x2 / RTC DS3231 SCL
+#define DHTPIN           32     // Sensor Suhu & Kelembaban Udara DHT22
+#define DHTTYPE          DHT22  
+#define LDR_PIN          34     // Sensor Cahaya LDR (ADC1_CH6)
+#define BUTTON_PIN       19     // Push Button Manual (Active LOW, Internal Pullup)
+#define RELAY_PUMP_PIN   13     // Relay Channel 1: Pompa Air Utama
+#define RELAY_VALVE_PIN  12     // Relay Channel 2: Solenoid Valve Utama
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 DHT dht(DHTPIN, DHTTYPE);
@@ -329,7 +338,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <div class="card">
       <div class="card-title">Cahaya & Tombol Fisik</div>
       <div class="card-val" style="color:#fde047;"><span id="lightLux">--</span><span class="unit">Lux</span></div>
-      <div class="sub">Tombol GPIO 15: <strong id="btnState">STANDBY</strong> (<span id="btnCount">0</span>x)</div>
+      <div class="sub">Tombol GPIO 19: <strong id="btnState">STANDBY</strong> (<span id="btnCount">0</span>x)</div>
     </div>
 
     <div class="card">
@@ -420,7 +429,10 @@ void handleDataApi() {
 
 void handleTogglePump() {
   relayState = !relayState;
-  digitalWrite(RELAY_PIN, relayState ? HIGH : LOW);
+  // Sekuens sederhana: Jika ON, buka valve dan pompa; Jika OFF, matikan keduanya
+  digitalWrite(RELAY_VALVE_PIN, relayState ? HIGH : LOW);
+  delay(100);
+  digitalWrite(RELAY_PUMP_PIN, relayState ? HIGH : LOW);
   server.send(200, "text/plain", "OK");
 }
 
@@ -432,8 +444,10 @@ void setup() {
 
   pinMode(LDR_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW);
+  pinMode(RELAY_PUMP_PIN, OUTPUT);
+  pinMode(RELAY_VALVE_PIN, OUTPUT);
+  digitalWrite(RELAY_PUMP_PIN, LOW);
+  digitalWrite(RELAY_VALVE_PIN, LOW);
 
   // Inisialisasi LCD Fisik 16x2
   Wire.begin(I2C_SDA, I2C_SCL);
@@ -533,17 +547,20 @@ void updatePhysicalLcd(bool btnPressed) {
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-const char* WIFI_SSID     = "NAMA_WIFI_INTERNET_ANDA";
-const char* WIFI_PASSWORD = "PASSWORD_WIFI_ANDA";
+// --- KONFIGURASI WIFI INTERNET / ROUTER RUMAH / KEBUN ---
+// Ganti SSID dan Password router Anda di bawah ini:
+const char* WIFI_SSID     = "${wifiSsid}";
+const char* WIFI_PASSWORD = "${wifiPassword}";
 const char* SERVER_URL    = "${endpointUrl}";
 
-#define I2C_SDA       21     
-#define I2C_SCL       22     
-#define DHTPIN        4      
-#define DHTTYPE       DHT22  
-#define LDR_PIN       34     
-#define BUTTON_PIN    15     
-#define RELAY_PIN     2      
+#define I2C_SDA          21     
+#define I2C_SCL          22     
+#define DHTPIN           32     // DHT22 Suhu & Kelembaban Udara
+#define DHTTYPE          DHT22  
+#define LDR_PIN          34     // Sensor Cahaya LDR
+#define BUTTON_PIN       19     // Push Button Fisik (Active LOW)
+#define RELAY_PUMP_PIN   13     // Relay Channel 1: Pompa Air
+#define RELAY_VALVE_PIN  12     // Relay Channel 2: Solenoid Valve
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 DHT dht(DHTPIN, DHTTYPE);
@@ -571,8 +588,10 @@ void setup() {
   Serial.begin(115200);
   pinMode(LDR_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW);
+  pinMode(RELAY_PUMP_PIN, OUTPUT);
+  pinMode(RELAY_VALVE_PIN, OUTPUT);
+  digitalWrite(RELAY_PUMP_PIN, LOW);
+  digitalWrite(RELAY_VALVE_PIN, LOW);
 
   Wire.begin(I2C_SDA, I2C_SCL);
   lcd.init();
@@ -634,7 +653,8 @@ void loop() {
  * SKETCH BANTUAN: SCANNER MAC ADDRESS ESP-WROOM-32D GATEWAY
  * ==============================================================================
  * Upload ke ESP-WROOM-32D untuk melihat MAC Address pada Serial Monitor (115200).
- * Masukkan MAC ini ke sketch 'ESP32_C3_Supermini_Soil_DeepSleep15m.ino'.
+ * MAC Address Gateway Anda yang telah dikonfigurasi: 24:0a:c4:15:40:25
+ * Format Array Byte C++: { 0x24, 0x0A, 0xC4, 0x15, 0x40, 0x25 }
  * ==============================================================================
  */
 
@@ -759,7 +779,7 @@ void loop() {
           }`}
         >
           <FileCode className="w-3.5 h-3.5 text-amber-400" />
-          <span>4. Cek MAC Gateway</span>
+          <span>4. MAC Gateway (24:0a:c4:15:40:25)</span>
         </button>
         <button
           onClick={() => setActiveCodeTab('wiring')}
@@ -771,6 +791,154 @@ void loop() {
           <span>5. Panduan Rangkaian Pin 10 & Hotspot HP</span>
         </button>
       </div>
+
+      {/* Interactive WiFi Hotspot Configurator */}
+      {activeCodeTab === 'standalone_ap' && (
+        <div className="bg-slate-900/90 border border-emerald-800/60 rounded-xl p-4 text-xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-400">
+                <Wifi className="w-4 h-4" />
+              </span>
+              <div>
+                <div className="font-bold text-slate-100 flex items-center gap-2">
+                  <span>Ganti Nama (SSID) & Password Hotspot ESP32</span>
+                  <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800/80 px-2 py-0.5 rounded font-mono">
+                    Auto-Generate ke Kode C++
+                  </span>
+                </div>
+                <div className="text-slate-400 text-[11px]">
+                  Ketik nama dan password WiFi hotspot yang Anda inginkan. Kode di bawah langsung terupdate otomatis!
+                </div>
+              </div>
+            </div>
+            {(apSsid !== 'ESP32-Smart-Garden' || apPassword !== 'password123') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setApSsid('ESP32-Smart-Garden');
+                  setApPassword('password123');
+                }}
+                className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 cursor-pointer self-start sm:self-auto"
+                title="Kembalikan ke SSID default"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Default</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                Nama Hotspot WiFi (SSID):
+              </label>
+              <input
+                type="text"
+                value={apSsid}
+                onChange={(e) => setApSsid(e.target.value)}
+                placeholder="Contoh: ESP32-Smart-Garden"
+                className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-1.5 text-xs text-emerald-300 font-mono outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                <span>Password WiFi Hotspot:</span>
+                <span className="text-[10px] text-slate-500">Min. 8 karakter (atau kosongkan untuk Open)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type={showWifiPassword ? 'text' : 'password'}
+                  value={apPassword}
+                  onChange={(e) => setApPassword(e.target.value)}
+                  placeholder="Min. 8 karakter..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-1.5 text-xs text-white font-mono outline-none pr-8"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowWifiPassword(!showWifiPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                >
+                  {showWifiPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive WiFi Router Configurator */}
+      {activeCodeTab === 'gateway_cloud' && (
+        <div className="bg-slate-900/90 border border-blue-800/60 rounded-xl p-4 text-xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-blue-950 border border-blue-800 text-blue-400">
+                <Wifi className="w-4 h-4" />
+              </span>
+              <div>
+                <div className="font-bold text-slate-100 flex items-center gap-2">
+                  <span>Isi SSID & Password WiFi Router Internet</span>
+                  <span className="text-[10px] bg-blue-950 text-blue-300 border border-blue-800/80 px-2 py-0.5 rounded font-mono">
+                    Auto-Generate ke Kode C++
+                  </span>
+                </div>
+                <div className="text-slate-400 text-[11px]">
+                  Masukkan nama WiFi router rumah/kebun dan passwordnya agar ESP32 bisa online ke internet.
+                </div>
+              </div>
+            </div>
+            {(wifiSsid !== 'NAMA_WIFI_INTERNET_ANDA' || wifiPassword !== 'PASSWORD_WIFI_ANDA') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setWifiSsid('NAMA_WIFI_INTERNET_ANDA');
+                  setWifiPassword('PASSWORD_WIFI_ANDA');
+                }}
+                className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 cursor-pointer self-start sm:self-auto"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                Nama WiFi Router (SSID):
+              </label>
+              <input
+                type="text"
+                value={wifiSsid}
+                onChange={(e) => setWifiSsid(e.target.value)}
+                placeholder="Nama WiFi rumah Anda"
+                className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-3 py-1.5 text-xs text-blue-300 font-mono outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                Password WiFi Router:
+              </label>
+              <div className="relative">
+                <input
+                  type={showWifiPassword ? 'text' : 'password'}
+                  value={wifiPassword}
+                  onChange={(e) => setWifiPassword(e.target.value)}
+                  placeholder="Password WiFi router..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-lg px-3 py-1.5 text-xs text-white font-mono outline-none pr-8"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowWifiPassword(!showWifiPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                >
+                  {showWifiPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Code Display or Wiring Guide */}
       {activeCodeTab === 'wiring' ? (
@@ -789,8 +957,8 @@ void loop() {
             <div className="p-4 bg-slate-950 rounded-lg border border-slate-800 font-mono text-xs space-y-2 text-slate-300">
               <div className="text-emerald-300 font-bold">Langkah Penggunaan di HP:</div>
               <div className="text-slate-300 space-y-1">
-                <div>1. Nyalakan ESP-WROOM-32D (akan otomatis memancarkan WiFi SSID: <strong>ESP32-Smart-Garden</strong>).</div>
-                <div>2. Di HP Anda, buka pengaturan WiFi dan sambungkan ke <strong>ESP32-Smart-Garden</strong> (Password: <strong>password123</strong>).</div>
+                <div>1. Nyalakan ESP-WROOM-32D (akan otomatis memancarkan WiFi SSID: <strong>{apSsid}</strong>).</div>
+                <div>2. Di HP Anda, buka pengaturan WiFi dan sambungkan ke <strong>{apSsid}</strong> (Password: <strong>{apPassword}</strong>).</div>
                 <div>3. Buka browser di HP (Chrome / Safari / Firefox), ketik alamat IP: <strong className="text-cyan-300">http://192.168.4.1</strong></div>
                 <div>4. Dashboard interaktif modern langsung terbuka di HP secara offline tanpa kuota internet maupun router!</div>
               </div>
@@ -824,31 +992,35 @@ void loop() {
           {/* Wiring Table */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-              <h3 className="text-sm font-bold text-white mb-3">Tabel Wiring ESP-WROOM-32D (Gateway + LCD 16x2)</h3>
+              <h3 className="text-sm font-bold text-white mb-3">Tabel Wiring ESP-WROOM-32D (Gateway + Actuators)</h3>
               <div className="space-y-2 text-xs font-mono">
                 <div className="p-2.5 bg-slate-950/80 rounded border border-slate-800 flex justify-between">
-                  <span className="text-slate-300">LCD 16x2 I2C (SDA)</span>
+                  <span className="text-slate-300">LCD 16x2 / RTC DS3231 (SDA)</span>
                   <span className="text-cyan-400 font-bold">GPIO 21</span>
                 </div>
                 <div className="p-2.5 bg-slate-950/80 rounded border border-slate-800 flex justify-between">
-                  <span className="text-slate-300">LCD 16x2 I2C (SCL)</span>
+                  <span className="text-slate-300">LCD 16x2 / RTC DS3231 (SCL)</span>
                   <span className="text-cyan-400 font-bold">GPIO 22</span>
                 </div>
                 <div className="p-2.5 bg-slate-950/80 rounded border border-slate-800 flex justify-between">
-                  <span className="text-slate-300">DHT22 Data</span>
-                  <span className="text-cyan-400">GPIO 4</span>
+                  <span className="text-slate-300">Sensor DHT22 (Suhu & Udara)</span>
+                  <span className="text-emerald-400 font-bold">GPIO 32</span>
                 </div>
                 <div className="p-2.5 bg-slate-950/80 rounded border border-slate-800 flex justify-between">
                   <span className="text-slate-300">Sensor Cahaya (LDR)</span>
-                  <span className="text-cyan-400">GPIO 34 (ADC1)</span>
+                  <span className="text-emerald-400 font-bold">GPIO 34 (ADC1)</span>
                 </div>
                 <div className="p-2.5 bg-slate-950/80 rounded border border-slate-800 flex justify-between">
-                  <span className="text-slate-300">Tombol Push Button</span>
-                  <span className="text-cyan-400">GPIO 15 (Active LOW)</span>
+                  <span className="text-slate-300">Push Button Manual</span>
+                  <span className="text-emerald-400 font-bold">GPIO 19 (Active LOW)</span>
                 </div>
                 <div className="p-2.5 bg-slate-950/80 rounded border border-slate-800 flex justify-between">
-                  <span className="text-slate-300">Relay Pompa Air</span>
-                  <span className="text-cyan-400">GPIO 2</span>
+                  <span className="text-slate-300">Relay CH 1: Pompa Air</span>
+                  <span className="text-emerald-400 font-bold">GPIO 13</span>
+                </div>
+                <div className="p-2.5 bg-slate-950/80 rounded border border-slate-800 flex justify-between">
+                  <span className="text-slate-300">Relay CH 2: Solenoid Valve</span>
+                  <span className="text-emerald-400 font-bold">GPIO 12</span>
                 </div>
               </div>
             </div>

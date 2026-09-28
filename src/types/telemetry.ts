@@ -80,6 +80,7 @@ export interface GatewayNode {
   id: string;
   boardModel: 'ESP-WROOM-32D';
   status: 'online' | 'offline';
+  macAddress?: string;
   lastSeen: number;
   ip: string;
   wifiSsid: string;

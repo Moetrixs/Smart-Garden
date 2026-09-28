@@ -72,6 +72,7 @@ export interface TelemetryData {
     id: string;
     boardModel: 'ESP-WROOM-32D';
     status: 'online' | 'offline';
+    macAddress?: string;
     lastSeen: number;
     ip: string;
     wifiSsid: string;
@@ -202,6 +203,7 @@ let currentTelemetry: TelemetryData = {
     id: 'ESP32-GW-WROOM32D',
     boardModel: 'ESP-WROOM-32D',
     status: 'online',
+    macAddress: '24:0a:c4:15:40:25',
     lastSeen: nowTime,
     ip: '192.168.1.145',
     wifiSsid: 'IoT-Lab-WiFi',

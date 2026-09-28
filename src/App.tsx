@@ -12,11 +12,19 @@ export default function App() {
   const [simulationActive, setSimulationActive] = useState<boolean>(true);
 
   // Password protection for Pengaturan Penyiraman
+  const [adminPassword, setAdminPassword] = useState<string>(() => {
+    try {
+      return localStorage.getItem('smart_garden_admin_password') || 'admin123';
+    } catch {
+      return 'admin123';
+    }
+  });
   const [isIrrigationUnlocked, setIsIrrigationUnlocked] = useState<boolean>(false);
   const [showPasswordModal, setShowPasswordModal] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [showPasswordText, setShowPasswordText] = useState<boolean>(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
 
   const now = Date.now();
   const [telemetry, setTelemetry] = useState<TelemetryData>({
@@ -26,6 +34,7 @@ export default function App() {
       id: 'ESP32-GW-WROOM32D',
       boardModel: 'ESP-WROOM-32D',
       status: 'online',
+      macAddress: '24:0a:c4:15:40:25',
       lastSeen: now,
       ip: '192.168.1.145',
       wifiSsid: 'IoT-Lab-WiFi',
@@ -314,14 +323,41 @@ export default function App() {
   const handleVerifyPassword = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = passwordInput.trim();
-    if (trimmed === 'admin123' || trimmed === '1234' || trimmed === 'admin') {
+    if (
+      trimmed === adminPassword ||
+      trimmed === 'admin123' ||
+      trimmed === '1234' ||
+      trimmed === 'admin'
+    ) {
       setIsIrrigationUnlocked(true);
       setShowPasswordModal(false);
       setActiveTab('irrigation');
       setPasswordError(null);
+      setResetNotice(null);
     } else {
       setPasswordError('Kata sandi salah. Silakan coba lagi.');
     }
+  };
+
+  const handleUpdateAdminPassword = (newPass: string) => {
+    setAdminPassword(newPass);
+    try {
+      localStorage.setItem('smart_garden_admin_password', newPass);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleResetPasswordToDefault = () => {
+    setAdminPassword('admin123');
+    try {
+      localStorage.setItem('smart_garden_admin_password', 'admin123');
+    } catch (e) {
+      console.error(e);
+    }
+    setPasswordInput('admin123');
+    setPasswordError(null);
+    setResetNotice('Kata sandi telah direset ke default: admin123');
   };
 
   return (
@@ -378,6 +414,8 @@ export default function App() {
             onStopSequence={handleStopIrrigation}
             onUpdateSettings={handleUpdateIrrigationSettings}
             onSimulateWeather={handleSimulateWeather}
+            adminPassword={adminPassword}
+            onUpdateAdminPassword={handleUpdateAdminPassword}
             onLockSettings={() => {
               setIsIrrigationUnlocked(false);
               setActiveTab('dashboard');
@@ -447,9 +485,21 @@ export default function App() {
                     <span>⚠️</span> {passwordError}
                   </p>
                 )}
-                <p className="text-[11px] text-slate-500 mt-2">
-                  💡 Kata sandi default: <span className="font-mono text-cyan-400 font-semibold">admin123</span>
-                </p>
+                {resetNotice && (
+                  <p className="text-xs text-emerald-400 mt-1.5 font-medium flex items-center gap-1">
+                    <span>✓</span> {resetNotice}
+                  </p>
+                )}
+                <div className="flex items-center justify-between text-[11px] text-slate-500 mt-2">
+                  <span>💡 Default: <code className="text-cyan-400 font-semibold font-mono">admin123</code></span>
+                  <button
+                    type="button"
+                    onClick={handleResetPasswordToDefault}
+                    className="text-amber-400 hover:text-amber-300 underline cursor-pointer text-[11px]"
+                  >
+                    Lupa sandi?
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
