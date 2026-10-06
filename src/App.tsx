@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TopBar } from './components/TopBar';
 import { SensorCards } from './components/SensorCards';
-import { SmartIrrigationPanel } from './components/SmartIrrigationPanel';
+import { SmartIrrigationPanel } from './features/irrigation/SmartIrrigationPanel';
 import { soundEffects } from './utils/audioAlert';
 import { useTelemetry } from './hooks/useTelemetry';
 import { api } from './lib/api';
@@ -94,9 +94,7 @@ export default function App() {
   };
 
   const handleVerifyPassword = (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
-    }
+    if (e) e.preventDefault();
 
     const trimmed = passwordInput.trim();
     const validPasswords = ['admin123', '1234', 'admin'];
